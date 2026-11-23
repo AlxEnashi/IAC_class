@@ -27,7 +27,7 @@ demo/
   scripts/             small helpers (inventory from terraform output)
 ```
 
-The app also lives in a **private git repo** that Ansible clones (D32). People running the demo push `demo/app/` to their own private repo.
+`demo/` is a **public git repo** (https://github.com/AlxEnashi/IAC_class). Ansible clones the whole repo over HTTPS (no key) and uses its `app/` folder (D54).
 
 ## 3. The app
 
@@ -105,9 +105,7 @@ Generated from `terraform output` by `scripts/make-inventory.sh` into `ansible/i
 ### Roles
 - **base**: `git` with `ansible.builtin.package: state=present` (the demo's bash-vs-module example, D27).
 - **api**:
-  - Fail early if `deploy_key_path` is not passed (D35).
-  - Copy the key from the laptop to `/home/ec2-user/.ssh/deploy_key` (`0600`, `no_log`). The key stays on the host (D35).
-  - `ansible.builtin.git` clone of `app_repo_url` at `app_version` with `key_file`.
+  - `ansible.builtin.git` clone of `app_repo_url` at `app_version` into `/opt/phrase-api/src`; the app runs from `src/app` (`app_src`).
   - `python3.11` + venv + `pip install -r requirements.txt`.
   - Template `/etc/phrase-api/config.yaml` from `api_phrase`; notifies the restart handler.
   - systemd unit `phrase-api.service`: runs as `ec2-user`, `PORT=80`, `AmbientCapabilities=CAP_NET_BIND_SERVICE` (D30).
@@ -116,15 +114,15 @@ Generated from `terraform output` by `scripts/make-inventory.sh` into `ansible/i
   - Stop and disable `phrase-api`.
   - Install k3s with the official script, guarded by `creates: /usr/local/bin/k3s` (the justified `shell` exception, D27), with `--tls-san <EIP>` so the laptop can reach the API.
   - Traefik (bundled) takes port 80.
-- **image** (off-screen): install Docker; `docker build -t phrase-api:1.0` from the cloned repo; `docker save | k3s ctr images import -` (D42). Fetch the kubeconfig to `demo/kubeconfig` (server address set to the EIP).
+- **image** (off-screen): install Docker; `docker build -t phrase-api:1.0` from `src/app` in the clone; `docker save | k3s ctr images import -` (D42). Fetch the kubeconfig to `demo/kubeconfig` (server address set to the EIP).
 
 ### Variables
 | Variable | Where | Notes |
 |---|---|---|
-| `app_repo_url` | `group_vars/all.yml` | SSH URL of your private repo |
+| `app_repo_url` | `group_vars/all.yml` | HTTPS URL of the public demo repo (or your fork) |
 | `app_version` | `group_vars/all.yml` | branch or tag |
 | `api_phrase` | `group_vars/all.yml` | the phrase |
-| `deploy_key_path` | **`-e` only** | required, never in a file (D35) |
+| `app_src` | `group_vars/all.yml` | app folder inside the clone (`src/app`) |
 
 ### Done when
 - `site.yml` run twice: second run has `changed=0`.
@@ -153,12 +151,12 @@ Generated from `terraform output` by `scripts/make-inventory.sh` into `ansible/i
 
 | Stage | Steps |
 |---|---|
-| Before class | Create state bucket; deploy key pair + register it on the repo; `terraform apply`; check CloudFront is deployed |
+| Before class | Create state bucket; `terraform apply`; check CloudFront is deployed |
 | Part 1 live | Walk files; small change → `plan` → `apply`; SSH checks |
 | Part 2 live | `make-inventory.sh`; `ansible all -m ping`; `site.yml`; open URL; change phrase; rerun; `k3s.yml` |
 | Off-screen | `helm-prep.yml` |
 | Part 3 live | Walk chart; `lint` / `template`; `upgrade --install`; open URL; edit phrase; `upgrade` + `rollout restart` |
-| After class | `terraform destroy`; delete the deploy key from the repo and locally |
+| After class | `terraform destroy` |
 
 ## 8. Cost (approximate, check current AWS pricing)
 - `t3.medium` on demand: about $0.04/hour.
@@ -170,7 +168,7 @@ Generated from `terraform output` by `scripts/make-inventory.sh` into `ansible/i
 ## 9. Security notes (say them in class)
 - SSH open only to one IP; port 80 only to CloudFront.
 - CloudFront → EC2 is plain HTTP (D23).
-- The deploy key is read-only, disposable, and deleted after class.
+- The repo is public: no secret is needed to clone. A private repo would need a read-only deploy key (e.g. from SSM); content only (D54).
 - `terraform.tfvars`, `backend.hcl`, the inventory and any key files are git-ignored.
 
 ## 10. Resolved questions

@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 User=ec2-user
-WorkingDirectory={{ app_dir }}/src
+WorkingDirectory={{ app_src }}
 Environment=PORT=80
 Environment=CONFIG_PATH=/etc/phrase-api/config.yaml
 ExecStart={{ app_dir }}/venv/bin/python main.py

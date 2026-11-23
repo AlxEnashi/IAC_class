@@ -18,7 +18,7 @@
   when: ("docker.io/library/" ~ app_image) not in k3s_images.stdout_lines
   block:
     - name: Image is built from the cloned repo
-      ansible.builtin.command: docker build -t {{ app_image }} {{ app_dir }}/src
+      ansible.builtin.command: docker build -t {{ app_image }} {{ app_src }}
 
     # k3s uses containerd, not Docker: the image has to be imported.
     - name: Image is imported into k3s

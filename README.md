@@ -35,8 +35,7 @@ On your laptop:
 - Terraform >= 1.10
 - Ansible (ansible-core >= 2.15)
 - Helm 3 and kubectl
-- An SSH key pair (default `~/.ssh/id_ed25519`)
-- A GitHub or GitLab account (for a private repo with the app)
+- An SSH key pair (default `~/.ssh/id_ed25519`): Terraform installs its public key on the machine, and you and Ansible log in with it
 
 ## 0. One-time setup
 
@@ -53,22 +52,6 @@ aws s3api put-bucket-versioning --bucket $BUCKET \
 echo $BUCKET   # put this name in backend.hcl
 ```
 
-### Private app repo and deploy key
-Ansible clones the app from a **private** repo using a read-only deploy key.
-
-```bash
-# 1. Push the app to a new private repo
-cp -r app /tmp/phrase-api && cd /tmp/phrase-api
-git init -b main && git add . && git commit -m "phrase-api"
-git remote add origin git@github.com:YOUR_USER/phrase-api.git
-git push -u origin main
-
-# 2. A disposable key, only for this demo
-ssh-keygen -t ed25519 -f ~/.ssh/class_deploy_key -N ""
-```
-
-Add `~/.ssh/class_deploy_key.pub` to the repo as a **read-only deploy key** (GitHub: Settings → Deploy keys).
-
 ### Config files
 ```bash
 cd terraform
@@ -77,7 +60,7 @@ cp terraform.tfvars.example terraform.tfvars  # set my_ip_cidr
 curl -s https://checkip.amazonaws.com         # your IP; add /32
 ```
 
-In `ansible/group_vars/all.yml`, set `app_repo_url` to your repo's SSH URL.
+Ansible clones this public repo (over HTTPS, no key) on the machine and runs the app from its `app/` folder. If you change the app, push it to your own fork and set `app_repo_url` in `ansible/group_vars/all.yml`.
 
 ## 1. Terraform
 
@@ -119,7 +102,7 @@ Run everything from `ansible/` (it picks up `ansible.cfg`).
 cd ../ansible
 ansible all -m ping
 
-ansible-playbook site.yml -e deploy_key_path=~/.ssh/class_deploy_key
+ansible-playbook site.yml
 ```
 
 **Check it:**
@@ -131,8 +114,8 @@ curl $URL/health    # {"status":"ok"}
 
 **Change the phrase:** edit `api_phrase` in `group_vars/all.yml`, then:
 ```bash
-ansible-playbook site.yml -e deploy_key_path=~/.ssh/class_deploy_key --check --diff
-ansible-playbook site.yml -e deploy_key_path=~/.ssh/class_deploy_key
+ansible-playbook site.yml --check --diff
+ansible-playbook site.yml
 curl $URL/
 ```
 Only the config template changes and the restart handler runs. Run it once more: `changed=0`.
@@ -176,7 +159,7 @@ terraform -chdir=terraform destroy
 rm -f kubeconfig ansible/inventory/hosts.yml
 ```
 
-Then delete the deploy key from the repo settings and locally (`rm ~/.ssh/class_deploy_key*`). Keep or delete the state bucket.
+Keep or delete the state bucket.
 
 ## Troubleshooting
 
@@ -186,11 +169,11 @@ Then delete the deploy key from the repo settings and locally (`rm ~/.ssh/class_
 | `init`: `IllegalLocationConstraintException` | The bucket name belongs to another account (or another region). Use a unique name, then `init -reconfigure -backend-config=backend.hcl`. |
 | SSH or kubectl times out | Your public IP changed. Update `my_ip_cidr`, run `terraform apply`. |
 | CloudFront returns 502/504 | Nothing is listening on port 80 yet, or CloudFront is still deploying. |
-| `site.yml` fails on the git task | Check `app_repo_url` and that the deploy key is registered on the repo. |
+| `site.yml` fails on the git task | Check `app_repo_url` (HTTPS URL of a public repo) and `app_version`. |
 | Security group rule limit error | The CloudFront prefix list counts as many rules; ask AWS for a higher "rules per security group" quota. |
 | `kubectl`: certificate error | k3s was installed before the public IP was known; uninstall (`/usr/local/bin/k3s-uninstall.sh`) and re-run `k3s.yml`. |
 
 ## Notes
 - `host_key_checking` is off in `ansible.cfg` because the machine is new each time. Don't copy that to real projects.
 - CloudFront → EC2 traffic is plain HTTP; only the viewer side is HTTPS.
-- The deploy key stays on the machine (later pulls need it); it is disposable and the machine is destroyed after the demo.
+- The repo is public, so cloning needs no secret. A private repo would need a read-only deploy key on the machine (e.g. read from SSM).
