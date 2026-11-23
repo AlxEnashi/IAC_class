@@ -1,0 +1,12 @@
+# Your private repo with the contents of demo/app (SSH URL).
+app_repo_url: "git@github.com:YOUR_USER/phrase-api.git"
+app_version: main
+
+# The phrase the API returns. Change it, then re-run site.yml.
+api_phrase: "Hello from Ansible"
+
+app_dir: /opt/phrase-api
+app_image: phrase-api:1.0
+
+# deploy_key_path is NOT set here on purpose: pass it with
+#   -e deploy_key_path=~/.ssh/class_deploy_key

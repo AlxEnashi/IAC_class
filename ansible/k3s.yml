@@ -1,0 +1,6 @@
+# End of Part 2 (live): stop the API and hand port 80 over to k3s.
+- name: Install k3s
+  hosts: all
+  become: true
+  roles:
+    - k3s

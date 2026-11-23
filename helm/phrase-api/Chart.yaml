@@ -1,0 +1,6 @@
+apiVersion: v2
+name: phrase-api
+description: Returns a phrase from its config. Demo chart for the IaC class.
+type: application
+version: 0.1.0
+appVersion: "1.0"

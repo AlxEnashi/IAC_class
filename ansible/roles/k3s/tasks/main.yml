@@ -1,0 +1,28 @@
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: The Ansible-managed API is stopped (port 80 goes to k3s)
+  ansible.builtin.systemd_service:
+    name: phrase-api
+    state: stopped
+    enabled: false
+  when: "'phrase-api.service' in ansible_facts.services"
+
+# No module installs k3s, so this is the justified shell task.
+# "creates" makes it idempotent: it is skipped once k3s exists.
+- name: k3s is installed
+  ansible.builtin.shell: curl -sfL https://get.k3s.io | sh -
+  args:
+    creates: /usr/local/bin/k3s
+  environment:
+    # Certificate also valid for the public IP, so the laptop can connect.
+    INSTALL_K3S_EXEC: "--tls-san {{ ansible_host }}"
+    INSTALL_K3S_SKIP_SELINUX_RPM: "true"
+
+- name: The node is Ready
+  ansible.builtin.command: k3s kubectl get nodes --no-headers
+  register: nodes
+  until: "' Ready ' in nodes.stdout"
+  retries: 30
+  delay: 5
+  changed_when: false

@@ -1,0 +1,7 @@
+# Bash version of the same thing:
+#   if ! command -v git; then sudo dnf install -y git; fi
+# The module checks first, so a second run reports "ok".
+- name: Git is installed
+  ansible.builtin.package:
+    name: git
+    state: present

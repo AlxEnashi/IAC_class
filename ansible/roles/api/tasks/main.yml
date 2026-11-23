@@ -1,0 +1,73 @@
+- name: The deploy key path was passed with -e
+  ansible.builtin.assert:
+    that: deploy_key_path is defined and deploy_key_path | length > 0
+    fail_msg: "Run with -e deploy_key_path=/path/to/your/deploy_key"
+
+- name: Python 3.11 is installed
+  ansible.builtin.package:
+    name:
+      - python3.11
+      - python3.11-pip
+    state: present
+
+- name: App directory exists
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: ec2-user
+    group: ec2-user
+    mode: "0755"
+
+- name: Deploy key is copied from the laptop
+  ansible.builtin.copy:
+    src: "{{ deploy_key_path }}"
+    dest: /home/ec2-user/.ssh/deploy_key
+    owner: ec2-user
+    group: ec2-user
+    mode: "0600"
+  no_log: true
+
+- name: App source is cloned from the private repo
+  ansible.builtin.git:
+    repo: "{{ app_repo_url }}"
+    dest: "{{ app_dir }}/src"
+    version: "{{ app_version }}"
+    key_file: /home/ec2-user/.ssh/deploy_key
+    accept_newhostkey: true
+  become_user: ec2-user
+  notify: Restart phrase-api
+
+- name: Python dependencies are installed in a virtualenv
+  ansible.builtin.pip:
+    requirements: "{{ app_dir }}/src/requirements.txt"
+    virtualenv: "{{ app_dir }}/venv"
+    virtualenv_command: python3.11 -m venv
+  become_user: ec2-user
+  notify: Restart phrase-api
+
+- name: Config directory exists
+  ansible.builtin.file:
+    path: /etc/phrase-api
+    state: directory
+    mode: "0755"
+
+- name: Config file has the phrase
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/phrase-api/config.yaml
+    mode: "0644"
+  notify: Restart phrase-api
+
+- name: systemd unit is installed
+  ansible.builtin.template:
+    src: phrase-api.service.j2
+    dest: /etc/systemd/system/phrase-api.service
+    mode: "0644"
+  notify: Restart phrase-api
+
+- name: API is running and enabled
+  ansible.builtin.systemd_service:
+    name: phrase-api
+    state: started
+    enabled: true
+    daemon_reload: true

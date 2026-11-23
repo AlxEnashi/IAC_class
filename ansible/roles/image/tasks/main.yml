@@ -1,0 +1,40 @@
+- name: Docker is installed
+  ansible.builtin.package:
+    name: docker
+    state: present
+
+- name: Docker is running
+  ansible.builtin.systemd_service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Check whether k3s already has the image
+  ansible.builtin.command: k3s ctr images ls -q
+  register: k3s_images
+  changed_when: false
+
+- name: Image is built and imported into k3s
+  when: ("docker.io/library/" ~ app_image) not in k3s_images.stdout_lines
+  block:
+    - name: Image is built from the cloned repo
+      ansible.builtin.command: docker build -t {{ app_image }} {{ app_dir }}/src
+
+    # k3s uses containerd, not Docker: the image has to be imported.
+    - name: Image is imported into k3s
+      ansible.builtin.shell: docker save {{ app_image }} | k3s ctr images import -
+
+- name: Read the k3s kubeconfig
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/k3s.yaml
+  register: kubeconfig
+  no_log: true
+
+- name: Kubeconfig is saved on the laptop, pointing at the public IP
+  ansible.builtin.copy:
+    content: "{{ kubeconfig.content | b64decode | replace('https://127.0.0.1:6443', 'https://' ~ ansible_host ~ ':6443') }}"
+    dest: "{{ playbook_dir }}/../kubeconfig"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true

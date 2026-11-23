@@ -1,0 +1,7 @@
+# Off-screen, before Part 3: build the image, import it into k3s,
+# and fetch a kubeconfig the laptop can use.
+- name: Prepare the machine for Helm
+  hosts: all
+  become: true
+  roles:
+    - image

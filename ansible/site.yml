@@ -1,0 +1,7 @@
+# Part 2 (live): install the base packages and run the API on port 80.
+- name: Configure the demo machine and run the API
+  hosts: all
+  become: true
+  roles:
+    - base
+    - api

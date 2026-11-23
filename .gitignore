@@ -1,0 +1,15 @@
+# Terraform
+terraform/.terraform/
+*.tfstate
+*.tfstate.*
+terraform/terraform.tfvars
+terraform/backend.hcl
+
+# Generated / secret
+ansible/inventory/hosts.yml
+kubeconfig
+*_deploy_key
+*_deploy_key.pub
+
+# Python
+__pycache__/
